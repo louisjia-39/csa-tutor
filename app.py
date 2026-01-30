@@ -2,9 +2,63 @@ import streamlit as st
 from services.wrongbook import init_db, add_entry, list_entries, get_entry
 from services.tutor_logic import generate_new_question, grade_and_extract_mistake, UNITS
 from services.openai_client import generate_text
+from services.auth import check_user_password, check_admin_password, weekly_password, next_rotation_time
 
 st.set_page_config(page_title="AP CSA Tutor + 错题本", layout="wide")
 init_db()
+
+# --- Auth gate ---
+if "is_user_authed" not in st.session_state:
+    st.session_state.is_user_authed = False
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
+with st.sidebar:
+    st.header("🔐 登录")
+    if not st.session_state.is_user_authed:
+        user_pw = st.text_input("本周访问密码", type="password")
+        if st.button("登录（用户）"):
+            if check_user_password(user_pw):
+                st.session_state.is_user_authed = True
+                st.success("登录成功")
+            else:
+                st.error("密码不对（注意每周一会更新）")
+    else:
+        st.success("用户已登录")
+        if st.button("退出用户登录"):
+            st.session_state.is_user_authed = False
+
+    st.divider()
+    st.subheader("👑 管理员")
+    if not st.session_state.is_admin:
+        admin_pw = st.text_input("管理员密码", type="password")
+        if st.button("登录（管理员）"):
+            if check_admin_password(admin_pw):
+                st.session_state.is_admin = True
+                st.success("管理员登录成功")
+            else:
+                st.error("管理员密码不对")
+    else:
+        st.success("管理员已登录")
+        if st.button("退出管理员"):
+            st.session_state.is_admin = False
+
+    if st.session_state.is_admin:
+        st.divider()
+        st.subheader("本周密码（管理员可见）")
+        st.code(weekly_password(), language="text")
+        st.caption(f"下次自动切换时间：{next_rotation_time().strftime('%Y-%m-%d %H:%M %Z')}")
+        # 可选：显示下周密码
+        # from datetime import timedelta
+        # import streamlit as st
+        # import datetime as dt
+        # st.code(weekly_password(dt.datetime.now(ZoneInfo(st.secrets.get('TIMEZONE','UTC'))) + timedelta(days=7)))
+
+# Block app if user not authed
+if not st.session_state.is_user_authed:
+    st.info("请在左侧输入“本周访问密码”后使用。")
+    st.stop()
+
 
 st.title("AP CSA(Java) 练习 + 讲解 + 自动错题本")
 
