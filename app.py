@@ -1,5 +1,5 @@
 import streamlit as st
-
+st.write("BUILD: 2026-01-31-2050")
 from services.wrongbook import (
     init_db,
     add_entry,
