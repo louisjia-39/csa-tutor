@@ -34,16 +34,24 @@ def grade_and_extract_mistake(question: str, user_answer: str, unit_hint: str = 
             "mistake_type": "unknown",
             "unit": unit_hint or "",
             "topic": "",
-            "drills": []
-        }
-
 def generate_new_question(unit: str, topic: str = "", difficulty: str = "easy"):
     system = (
-        "你是AP CSA(Java)出题官。请只输出一道题：包含题干 +（如适用）选项 + 标准答案 + 简要解析。"
-        "题目要符合AP CSA风格，避免过长。"
+        "你是AP CSA(Java)出题官。只输出【题目本身】，不要输出答案、不要输出解析、不要输出提示。\n"
+        "题目尽量是AP CSA风格：选择题或简答/代码填空都可以。\n"
+        "如果是选择题，给A/B/C/D/E选项，但不要标注正确选项。\n"
+        "严格按下面格式输出：\n"
+        "【题目】...\n"
+        "【选项】(如有)\n"
+        "A. ...\n"
+        "B. ...\n"
+        "C. ...\n"
+        "D. ...\n"
+        "E. ...\n"
+        "【作答要求】学生需要提交：最终选项(如B)或代码/结论。\n"
+        "禁止出现：标准答案/正确答案/解析/答案："
     )
     user = f"按{unit}出一道{difficulty}题。topic偏向：{topic}".strip()
     return generate_text(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.6
+        temperature=0.7
     )
