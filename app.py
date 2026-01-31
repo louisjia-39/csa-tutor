@@ -97,6 +97,7 @@ with tab1:
 # --------- Tab 2: Practice ----------
 with tab2:
     colA, colB = st.columns([1, 1])
+
     with colA:
         unit = st.selectbox("选择单元(Unit)", UNITS, index=0)
         topic = st.text_input("topic（可选，比如：for循环/构造器/ArrayList）", "")
@@ -106,12 +107,14 @@ with tab2:
     with colB:
         st.subheader("题目")
         q = st.session_state.get("current_q", "点击“生成新题”开始。")
+
         # 防止模型误输出答案（兜底）
-leak_words = ["标准答案", "答案：", "答案:", "解析", "正确答案"]
-if any(w in q for w in leak_words):
-    st.warning("检测到题目里包含答案/解析，已隐藏。请点击“生成新题”重新出题。")
-    st.session_state.current_q = "点击“生成新题”开始。"
-    q = st.session_state.current_q
+        leak_words = ["标准答案", "答案：", "答案:", "解析", "正确答案"]
+        if any(w in q for w in leak_words):
+            st.warning("检测到题目里包含答案/解析，已隐藏。请点击“生成新题”重新出题。")
+            st.session_state.current_q = "点击“生成新题”开始。"
+            q = st.session_state.current_q
+
         st.write(q)
 
     st.divider()
