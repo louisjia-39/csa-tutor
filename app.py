@@ -106,6 +106,12 @@ with tab2:
     with colB:
         st.subheader("题目")
         q = st.session_state.get("current_q", "点击“生成新题”开始。")
+        # 防止模型误输出答案（兜底）
+leak_words = ["标准答案", "答案：", "答案:", "解析", "正确答案"]
+if any(w in q for w in leak_words):
+    st.warning("检测到题目里包含答案/解析，已隐藏。请点击“生成新题”重新出题。")
+    st.session_state.current_q = "点击“生成新题”开始。"
+    q = st.session_state.current_q
         st.write(q)
 
     st.divider()
