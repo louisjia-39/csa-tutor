@@ -1,29 +1,18 @@
 import streamlit as st
-st.write("BUILD: 2026-01-31-2050")
-from services.wrongbook import (
-    init_db,
-    add_entry,
-    list_entries,
-    get_entry,
-)
 
-from services.tutor_logic import (
-    generate_new_question,
-    grade_and_extract_mistake,
-    UNITS,
-)
+# ========= 防止缓存/确认版本 =========
+st.write("BUILD: 2026-01-31-2052")
 
-from services.openai_client import generate_text
+# ========= 模块导入（避免 iPad 断行/不可见字符导致 SyntaxError） =========
+import services.wrongbook as wrongbook
+import services.tutor_logic as tutor_logic
+import services.openai_client as openai_client
+import services.auth as auth
 
-from services.auth import (
-    check_user_password,
-    check_admin_password,
-    weekly_password,
-    next_rotation_time,
-)
-
+# ========= 页面初始化 =========
 st.set_page_config(page_title="AP CSA Tutor + 错题本", layout="wide")
-init_db()
+wrongbook.init_db()
+
 # ---------------- Auth Gate (Sidebar) ----------------
 if "is_user_authed" not in st.session_state:
     st.session_state.is_user_authed = False
@@ -33,10 +22,11 @@ if "is_admin" not in st.session_state:
 with st.sidebar:
     st.header("🔐 登录")
 
+    # User login (weekly password)
     if not st.session_state.is_user_authed:
         user_pw = st.text_input("本周访问密码", type="password")
         if st.button("登录（用户）"):
-            if check_user_password(user_pw):
+            if auth.check_user_password(user_pw):
                 st.session_state.is_user_authed = True
                 st.success("登录成功")
             else:
@@ -48,11 +38,12 @@ with st.sidebar:
 
     st.divider()
 
+    # Admin login
     st.subheader("👑 管理员")
     if not st.session_state.is_admin:
         admin_pw = st.text_input("管理员密码", type="password")
         if st.button("登录（管理员）"):
-            if check_admin_password(admin_pw):
+            if auth.check_admin_password(admin_pw):
                 st.session_state.is_admin = True
                 st.success("管理员登录成功")
             else:
@@ -62,12 +53,21 @@ with st.sidebar:
         if st.button("退出管理员"):
             st.session_state.is_admin = False
 
+    # Admin panel: show weekly password
     if st.session_state.is_admin:
         st.divider()
         st.subheader("本周密码（管理员可见）")
-        st.code(weekly_password(), language="text")
-        st.caption("下次自动切换时间：" + next_rotation_time().strftime("%Y-%m-%d %H:%M %Z"))
+        st.code(auth.weekly_password(), language="text")
+        try:
+            st.caption(
+                "下次自动切换时间："
+                + auth.next_rotation_time().strftime("%Y-%m-%d %H:%M %Z")
+            )
+        except Exception:
+            # 如果时区对象在不同环境下格式化出错，不影响主要功能
+            pass
 
+# Block entire app if user not authed
 if not st.session_state.is_user_authed:
     st.info("请在左侧输入“本周访问密码”后使用。")
     st.stop()
@@ -77,11 +77,14 @@ st.title("AP CSA(Java) 练习 + 讲解 + 自动错题本")
 
 tab1, tab2, tab3 = st.tabs(["💬 讲解聊天", "📝 做题模式", "📚 错题本"])
 
+# --------- Tab 1: Chat ----------
 with tab1:
     st.caption("你问概念/代码题，我用AP CSA风格解释。")
 
     if "chat" not in st.session_state:
-        st.session_state.chat = [{"role": "assistant", "content": "把题目或你卡住的点发我（可贴代码）。"}]
+        st.session_state.chat = [
+            {"role": "assistant", "content": "把题目或你卡住的点发我（可贴代码）。"}
+        ]
 
     for m in st.session_state.chat:
         with st.chat_message("assistant" if m["role"] == "assistant" else "user"):
@@ -97,27 +100,32 @@ with tab1:
             "你是AP CSA(Java)家教。回答要：短句、分点、先结论后原因、给1个小例子。"
             "如果是代码题，指出常见坑。"
         )
-        reply = generate_text(
+        reply = openai_client.generate_text(
             [{"role": "system", "content": system}] + st.session_state.chat[-6:],
-            temperature=0.4
+            temperature=0.4,
         )
+
         st.session_state.chat.append({"role": "assistant", "content": reply})
         with st.chat_message("assistant"):
             st.write(reply)
 
+# --------- Tab 2: Practice ----------
 with tab2:
     colA, colB = st.columns([1, 1])
 
     with colA:
-        unit = st.selectbox("选择单元(Unit)", UNITS, index=0)
+        unit = st.selectbox("选择单元(Unit)", tutor_logic.UNITS, index=0)
         topic = st.text_input("topic（可选，比如：for循环/构造器/ArrayList）", "")
         if st.button("生成新题"):
-            st.session_state.current_q = generate_new_question(unit, topic, difficulty="easy")
+            st.session_state.current_q = tutor_logic.generate_new_question(
+                unit, topic, difficulty="easy"
+            )
 
     with colB:
         st.subheader("题目")
         q = st.session_state.get("current_q", "点击“生成新题”开始。")
 
+        # 防止模型误输出答案（兜底）
         leak_words = ["标准答案", "答案：", "答案:", "解析", "正确答案"]
         if isinstance(q, str) and any(w in q for w in leak_words):
             st.warning("检测到题目里包含答案/解析，已隐藏。请点击“生成新题”重新出题。")
@@ -134,7 +142,7 @@ with tab2:
         if not q or (isinstance(q, str) and q.startswith("点击")):
             st.warning("先生成题目。")
         else:
-            result = grade_and_extract_mistake(q, user_answer, unit_hint=unit)
+            result = tutor_logic.grade_and_extract_mistake(q, user_answer, unit_hint=unit)
 
             st.markdown("### 判题结果")
             st.write("是否正确：", result.get("is_correct"))
@@ -155,7 +163,7 @@ with tab2:
                     st.markdown(f"**{i}. {d.get('q','')}**")
                     st.write("答案：", d.get("a", ""))
 
-            add_entry(
+            wrongbook.add_entry(
                 unit=result.get("unit", unit),
                 topic=result.get("topic", topic),
                 question=q,
@@ -163,27 +171,32 @@ with tab2:
                 correct_answer=result.get("correct_answer", ""),
                 explanation=result.get("explanation", ""),
                 mistake_type=result.get("mistake_type", ""),
-                next_drill=str(drills[:1])
+                next_drill=str(drills[:1]),
             )
             st.success("已加入错题本。去「错题本」查看。")
 
+# --------- Tab 3: Wrongbook ----------
 with tab3:
     st.subheader("最近错题")
-    rows = list_entries(limit=200)
+    rows = wrongbook.list_entries(limit=200)
     if not rows:
         st.info("还没有记录。去「做题模式」做一道题试试。")
     else:
         options = [f"#{r[0]} | {r[2]} | {r[3]} | {r[7]}" for r in rows]
         pick = st.selectbox("选择一条错题记录", options, index=0)
         entry_id = int(pick.split("|")[0].strip().replace("#", ""))
-        full = get_entry(entry_id)
+        full = wrongbook.get_entry(entry_id)
         if full:
             st.markdown("### 详情")
             st.write("创建时间：", full[1])
             st.write("Unit：", full[2])
             st.write("Topic：", full[3])
-            st.markdown("**题目**"); st.write(full[4])
-            st.markdown("**你的答案**"); st.write(full[5])
-            st.markdown("**正确答案**"); st.write(full[6])
-            st.markdown("**解析**"); st.write(full[7])
+            st.markdown("**题目**")
+            st.write(full[4])
+            st.markdown("**你的答案**")
+            st.write(full[5])
+            st.markdown("**正确答案**")
+            st.write(full[6])
+            st.markdown("**解析**")
+            st.write(full[7])
             st.write("错因类型：", full[8])
