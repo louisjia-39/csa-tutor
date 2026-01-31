@@ -1,8 +1,14 @@
 import streamlit as st
+
 from services.wrongbook import init_db, add_entry, list_entries, get_entry
 from services.tutor_logic import generate_new_question, grade_and_extract_mistake, UNITS
 from services.openai_client import generate_text
-from services.auth import check_user_password, check_admin_password, weekly_password, next_rotation_time
+from services.auth import (
+    check_user_password,
+    check_admin_password,
+    weekly_password,
+    next_rotation_time,
+)
 
 st.set_page_config(page_title="AP CSA Tutor + 错题本", layout="wide")
 init_db()
