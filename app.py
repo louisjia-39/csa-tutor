@@ -12,7 +12,6 @@ from services.auth import (
 
 st.set_page_config(page_title="AP CSA Tutor + 错题本", layout="wide")
 init_db()
-
 # --- Auth gate ---
 if "is_user_authed" not in st.session_state:
     st.session_state.is_user_authed = False
