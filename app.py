@@ -12,7 +12,8 @@ from services.auth import (
 
 st.set_page_config(page_title="AP CSA Tutor + 错题本", layout="wide")
 init_db()
-# --- Auth gate ---
+
+# ---------------- Auth Gate (Sidebar) ----------------
 if "is_user_authed" not in st.session_state:
     st.session_state.is_user_authed = False
 if "is_admin" not in st.session_state:
@@ -20,6 +21,8 @@ if "is_admin" not in st.session_state:
 
 with st.sidebar:
     st.header("🔐 登录")
+
+    # User login (weekly password)
     if not st.session_state.is_user_authed:
         user_pw = st.text_input("本周访问密码", type="password")
         if st.button("登录（用户）"):
@@ -27,13 +30,15 @@ with st.sidebar:
                 st.session_state.is_user_authed = True
                 st.success("登录成功")
             else:
-                st.error("密码不对（注意每周一会更新）")
+                st.error("密码不对（每周一 00:00 会更新）")
     else:
         st.success("用户已登录")
         if st.button("退出用户登录"):
             st.session_state.is_user_authed = False
 
     st.divider()
+
+    # Admin login
     st.subheader("👑 管理员")
     if not st.session_state.is_admin:
         admin_pw = st.text_input("管理员密码", type="password")
@@ -48,23 +53,22 @@ with st.sidebar:
         if st.button("退出管理员"):
             st.session_state.is_admin = False
 
+    # Admin panel: show weekly password
     if st.session_state.is_admin:
         st.divider()
         st.subheader("本周密码（管理员可见）")
         st.code(weekly_password(), language="text")
-        st.caption(f"下次自动切换时间：{next_rotation_time().strftime('%Y-%m-%d %H:%M %Z')}")
-        # 可选：显示下周密码
-        # from datetime import timedelta
-        # import streamlit as st
-        # import datetime as dt
-        # st.code(weekly_password(dt.datetime.now(ZoneInfo(st.secrets.get('TIMEZONE','UTC'))) + timedelta(days=7)))
+        st.caption(
+            "下次自动切换时间："
+            + next_rotation_time().strftime("%Y-%m-%d %H:%M %Z")
+        )
 
-# Block app if user not authed
+# Block entire app if user not authed
 if not st.session_state.is_user_authed:
     st.info("请在左侧输入“本周访问密码”后使用。")
     st.stop()
 
-
+# ---------------- Main UI ----------------
 st.title("AP CSA(Java) 练习 + 讲解 + 自动错题本")
 
 tab1, tab2, tab3 = st.tabs(["💬 讲解聊天", "📝 做题模式", "📚 错题本"])
@@ -115,7 +119,7 @@ with tab2:
 
         # 防止模型误输出答案（兜底）
         leak_words = ["标准答案", "答案：", "答案:", "解析", "正确答案"]
-        if any(w in q for w in leak_words):
+        if isinstance(q, str) and any(w in q for w in leak_words):
             st.warning("检测到题目里包含答案/解析，已隐藏。请点击“生成新题”重新出题。")
             st.session_state.current_q = "点击“生成新题”开始。"
             q = st.session_state.current_q
@@ -127,7 +131,7 @@ with tab2:
     user_answer = st.text_area("你的答案", height=120)
 
     if st.button("判题 + 生成同错因练习 + 加入错题本"):
-        if not q or q.startswith("点击"):
+        if not q or (isinstance(q, str) and q.startswith("点击")):
             st.warning("先生成题目。")
         else:
             result = grade_and_extract_mistake(q, user_answer, unit_hint=unit)
